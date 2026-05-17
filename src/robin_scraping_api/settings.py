@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    profiles_encryption_key: str
+    profiles_encryption_key: str = "change-me"
     environment: str
     
     model_config = SettingsConfigDict(
