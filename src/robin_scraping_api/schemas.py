@@ -7,9 +7,10 @@ OutputFormat = Literal["markdown", "html", "text"]
 
 class ScrapeResponse(BaseModel):
     url: HttpUrl = Field(..., description="The URL that was scraped.")
-    status: int = Field(
+    status_code: int = Field(
         ..., description="HTTP status code returned by the page.", examples=[200]
     )
+    status_message: str = Field(..., description="The message given by the scraper")
     profile: str | None = Field(
         None, description="Browser profile used, or null if stateless."
     )
