@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Profiles</h2>
+
+<form method="post" action="/profiles/create">
+    <input type="text" name="profile_name" placeholder="New profile name" required>
+    <button type="submit">Create</button>
+</form>
+
+<ul>
+{% for profile in profiles %}
+    <li>
+        {{ profile }}
+        <form method="post" action="/profiles/delete" style="display:inline">
+            <input type="hidden" name="profile_name" value="{{ profile }}">
+            <button type="submit" onclick="return confirm('Delete {{ profile }}?')">Delete</button>
+        </form>
+    </li>
+{% else %}
+    <li>No profiles yet.</li>
+{% endfor %}
+</ul>
+{% endblock %}
