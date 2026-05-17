@@ -97,7 +97,8 @@ def fetch(
 
     return ScrapeResponse(
         url=url,
-        status=page.status,
+        status_code=page.status,
+        status_message=page.reason,
         profile=profile_name,
         clean=clean,
         format=fmt,
