@@ -7,6 +7,8 @@ from pydantic import SecretStr
 from robin_scraping_api.config import PROFILES_DIR
 from robin_scraping_api.errors import AllTiersFailedError, ProfileNotFoundError
 from robin_scraping_api.logging_config import setup_logging
+from robin_scraping_api.memory.policy import StartPlan
+from robin_scraping_api.memory.service import DomainMemoryService
 from robin_scraping_api.rendering import clean_soup, render_plain_text, render_root
 from robin_scraping_api.schemas import OutputFormat, ScrapeResponse
 from robin_scraping_api.settings import settings
@@ -58,6 +60,7 @@ def fetch(
     max_tier: Tier = Tier.BROWSER_STEALTH_PROXY,
     proxy: SecretStr | None = None,
     debug: bool = False,
+    memory: DomainMemoryService | None = None,
 ) -> ScrapeResponse:
     """Fetch a URL through the ladder. Has side effects through the ladder tiers."""
     profile_path: str | None = None
@@ -78,21 +81,34 @@ def fetch(
         int(max_tier),
     )
 
+    plan: StartPlan | None = (
+        memory.plan(url=url, min_tier=min_tier, max_tier=max_tier) if memory else None
+    )
+
     result: LadderResult = ladder.run(
         request=LadderRequest(
             url=url,
-            min_tier=min_tier,
+            min_tier=plan.start_tier if plan else min_tier,
             max_tier=max_tier,
             proxy=proxy or settings.scraping_proxy,
             profile_path=profile_path,
             timeout_seconds=settings.request_timeout_seconds,
         )
     )
-    for line in result.process:
+    process: list[str] = list(result.process)
+    if memory and plan:
+        process = [
+            plan.reason,
+            *process,
+            memory.record(
+                url=url, plan=plan, outcome=result.outcome, tier_used=result.tier_used
+            ),
+        ]
+    for line in process:
         logger.info("ladder: %s", line)
 
     if result.final is None:
-        raise AllTiersFailedError(url=url, process=result.process)
+        raise AllTiersFailedError(url=url, process=process)
 
     return ScrapeResponse(
         url=url,
@@ -104,6 +120,6 @@ def fetch(
         content=_build_content(final=result.final, clean=clean, fmt=fmt),
         tier_used=int(result.final.tier),
         outcome=result.outcome,
-        process=result.process,
+        process=process,
         attempts=result.attempts if debug else None,
     )

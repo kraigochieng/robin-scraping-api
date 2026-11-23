@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dotenv import find_dotenv
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,6 +13,10 @@ class Settings(BaseSettings):
     profile_lock_timeout_seconds: float = 30.0
     scraping_proxy: SecretStr | None = None
     classify_min_words: int = 50
+    domain_memory_path: Path = Path("domain_memory.sqlite3")
+    memory_ttl_seconds: float = 24 * 3600
+    memory_probe_every: int = 20
+    memory_failure_threshold: int = 3
     request_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(
