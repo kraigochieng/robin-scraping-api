@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     profiles_encryption_key: SecretStr = SecretStr("change-me")
     environment: str = "prod"
     profile_lock_timeout_seconds: float = 30.0
+    scraping_proxy: SecretStr | None = None
+    classify_min_words: int = 50
+    request_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(
         extra="allow", env_file=find_dotenv(), env_file_encoding="utf-8"
