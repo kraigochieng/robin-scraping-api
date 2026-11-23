@@ -1,3 +1,4 @@
+import time
 from functools import lru_cache
 from typing import Annotated
 
@@ -9,6 +10,9 @@ from robin_scraping_api.errors import (
     ProfileBusyError,
     ProfileNotFoundError,
 )
+from robin_scraping_api.memory.base import MemoryConfig
+from robin_scraping_api.memory.service import DomainMemoryService
+from robin_scraping_api.memory.sqlite import SqliteDomainMemory
 from robin_scraping_api.schemas import OutputFormat, ScrapeResponse
 from robin_scraping_api.services import fetch as fetch_service
 from robin_scraping_api.settings import settings
@@ -29,6 +33,20 @@ def get_ladder() -> Ladder:
     )
 
 
+@lru_cache
+def get_memory_service() -> DomainMemoryService:
+    """Return the shared domain memory service built from settings. Tests override it."""
+    return DomainMemoryService(
+        memory=SqliteDomainMemory(path=settings.domain_memory_path),
+        clock=time.time,
+        config=MemoryConfig(
+            ttl_seconds=settings.memory_ttl_seconds,
+            probe_every=settings.memory_probe_every,
+            failure_threshold=settings.memory_failure_threshold,
+        ),
+    )
+
+
 @router.get(
     "/fetch",
     response_model=ScrapeResponse,
@@ -40,7 +58,8 @@ def get_ladder() -> Ladder:
         "Pass `profile_name` to reuse a persistent browser profile (e.g. for authenticated sessions). "
         "Use `clean=false` to get the raw full-page output. "
         "Use `format` to control the output format: `markdown` (default), `html`, or `text`. "
-        "Use `min_tier` and `max_tier` (1-5) to limit the ladder. Use `debug=true` to get `attempts`."
+        "Use `min_tier` and `max_tier` (1-5) to limit the ladder. Use `debug=true` to get `attempts`. "
+        "The service remembers the lowest tier that worked for each domain and starts there."
     ),
     responses={
         404: {"description": "Profile not found."},
@@ -51,6 +70,7 @@ def get_ladder() -> Ladder:
 )
 def fetch_url(
     ladder: Annotated[Ladder, Depends(get_ladder)],
+    memory: Annotated[DomainMemoryService, Depends(get_memory_service)],
     url: str = Query(
         ..., description="The URL to scrape.", examples=["https://example.com"]
     ),
@@ -89,6 +109,7 @@ def fetch_url(
             max_tier=Tier(max_tier),
             proxy=SecretStr(proxy) if proxy else None,
             debug=debug,
+            memory=memory,
         )
     except ProfileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error

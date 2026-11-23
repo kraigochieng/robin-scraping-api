@@ -10,6 +10,9 @@ wheels/
 .venv
 .env
 
+# Domain memory database
+*.sqlite3
+
 # Ignore profile contents but keep the folder
 src/robin_scraping_api/profiles/*
 !src/robin_scraping_api/profiles/.gitkeep

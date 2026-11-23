@@ -1,6 +1,7 @@
 """Shared pytest fixtures: network guard and browser-test gate."""
 
 import os
+from pathlib import Path
 from collections.abc import Iterator
 
 import pytest
@@ -41,6 +42,18 @@ def block_non_loopback_http(monkeypatch: pytest.MonkeyPatch) -> None:
         return real_get(url, **kwargs)
 
     monkeypatch.setattr(Fetcher, "get", staticmethod(guarded_get))
+
+
+@pytest.fixture(autouse=True)
+def isolate_domain_memory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Give each test its own domain memory file, so tests never share or write real state."""
+    from robin_scraping_api.routers.fetch import get_memory_service
+    from robin_scraping_api.settings import settings
+
+    monkeypatch.setattr(settings, "domain_memory_path", tmp_path / "domain_memory.sqlite3")
+    get_memory_service.cache_clear()
+    yield
+    get_memory_service.cache_clear()
 
 
 @pytest.fixture

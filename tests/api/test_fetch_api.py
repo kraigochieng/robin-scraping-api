@@ -77,7 +77,8 @@ def test_process_is_always_present_and_human_readable(client: TestClient) -> Non
     use(ladder=FakeLadder(result=ok_result()))
     body = client.get("/fetch", params={"url": "http://127.0.0.1/page"}).json()
     assert body["attempts"] is None
-    assert body["process"][0].startswith("Tried tier 1 (http)")
+    assert body["process"][0].startswith("Memory: no record for 127.0.0.1")
+    assert body["process"][1].startswith("Tried tier 1 (http)")
 
 
 def test_debug_adds_attempts(client: TestClient) -> None:
@@ -171,7 +172,8 @@ def test_all_tiers_failed_is_502_with_process(client: TestClient) -> None:
     use(ladder=FakeLadder(result=failure))
     response = client.get("/fetch", params={"url": "http://127.0.0.1/p"})
     assert response.status_code == 502
-    assert response.json()["detail"]["process"] == failure.process
+    process = response.json()["detail"]["process"]
+    assert failure.process[0] in process
 
 
 def test_last_failure_is_returned_with_its_outcome(client: TestClient) -> None:

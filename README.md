@@ -26,6 +26,15 @@ Each result is diagnosed as `ok`, `needs_js`, `blocked`, `login_wall`, `thin` or
 - `process`: plain-English sentences that tell how the ladder moved.
 - `attempts`: one entry per tier run (only with `debug=true`).
 
+## Domain memory
+
+The API remembers the lowest tier that worked for each domain (SQLite, `DOMAIN_MEMORY_PATH`, default `domain_memory.sqlite3`). The next request starts there. The `process` field tells what the memory decided.
+
+- After `MEMORY_TTL_SECONDS` (24 h) or `MEMORY_PROBE_EVERY` requests (20), the ladder probes cheaper tiers again.
+- After `MEMORY_FAILURE_THRESHOLD` failures in a row (3), the ladder starts one tier higher.
+- Tier 2 (alternates) needs the page from tier 1, so a remembered tier 2 starts at tier 1.
+- `min_tier` is a floor. `max_tier` is a cap.
+
 ## Tests
 
 ```
