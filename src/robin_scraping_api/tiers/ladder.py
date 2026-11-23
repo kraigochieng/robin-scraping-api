@@ -197,6 +197,7 @@ class Ladder:
                     reason=diagnosis.reason,
                     ms=elapsed_ms,
                     status=result.status if result else None,
+                    api_candidates=list(result.api_candidates) if result else [],
                 )
             )
             process.append(

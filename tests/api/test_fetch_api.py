@@ -85,7 +85,21 @@ def test_debug_adds_attempts(client: TestClient) -> None:
     """debug=true adds the attempts list."""
     use(ladder=FakeLadder(result=ok_result()))
     body = client.get("/fetch", params={"url": "http://127.0.0.1/page", "debug": "true"}).json()
-    assert body["attempts"] == [{"tier": 1, "tier_name": "http", "outcome": "ok", "reason": "fine", "ms": 5, "status": 200}]
+    assert body["attempts"] == [{"tier": 1, "tier_name": "http", "outcome": "ok", "reason": "fine", "ms": 5, "status": 200, "api_candidates": []}]
+
+
+def test_api_candidates_only_in_debug_trace(client: TestClient) -> None:
+    """Candidates appear inside attempts when debug=true, and nowhere else."""
+    from robin_scraping_api.tiers.models import ApiCandidate
+
+    candidate = ApiCandidate(url="http://127.0.0.1/api/a", status=200, matched_on=["og_title"], size_bytes=10)
+    result = ok_result(tier=Tier.BROWSER)
+    traced = result.model_copy(update={"attempts": [result.attempts[0].model_copy(update={"api_candidates": [candidate]})]})
+    use(ladder=FakeLadder(result=traced))
+    plain = client.get("/fetch", params={"url": "http://127.0.0.1/page"}).json()
+    debug = client.get("/fetch", params={"url": "http://127.0.0.1/page", "debug": "true"}).json()
+    assert "api/a" not in str(plain)
+    assert debug["attempts"][0]["api_candidates"][0]["url"] == "http://127.0.0.1/api/a"
 
 
 def test_default_content_is_main_text_without_nav(client: TestClient) -> None:

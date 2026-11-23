@@ -32,6 +32,17 @@ class Outcome(StrEnum):
     ERROR = "error"
 
 
+class ApiCandidate(BaseModel):
+    """A JSON response seen in the browser whose body holds the page title or first sentence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    url: str
+    status: int
+    matched_on: list[str]
+    size_bytes: int
+
+
 class Attempt(BaseModel):
     """One tier run, as shown in the debug trace."""
 
@@ -43,6 +54,7 @@ class Attempt(BaseModel):
     reason: str
     ms: int
     status: int | None = None
+    api_candidates: list[ApiCandidate] = []
 
 
 @dataclass(frozen=True)
@@ -56,6 +68,7 @@ class FetchResult:
     tier: Tier
     elapsed_ms: int
     extra: dict[str, str] = field(default_factory=dict)
+    api_candidates: tuple[ApiCandidate, ...] = ()
 
 
 class TierRequest(BaseModel):
