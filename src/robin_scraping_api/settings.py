@@ -1,11 +1,14 @@
 from dotenv import find_dotenv
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    profiles_encryption_key: str = "change-me"
-    environment: str
-    
+    """Application settings read from the environment and the .env file."""
+
+    profiles_encryption_key: SecretStr = SecretStr("change-me")
+    environment: str = "prod"
+
     model_config = SettingsConfigDict(
         extra="allow", env_file=find_dotenv(), env_file_encoding="utf-8"
     )
