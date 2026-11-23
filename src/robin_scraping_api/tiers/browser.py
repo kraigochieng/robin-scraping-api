@@ -7,6 +7,7 @@ from scrapling.fetchers import StealthySession
 
 from robin_scraping_api.errors import ProfileBusyError, TierFetchError
 from robin_scraping_api.profile_locks import ProfileLockRegistry
+from robin_scraping_api.tiers.candidates import CapturedResponse, find_api_candidates
 from robin_scraping_api.tiers.models import FetchResult, Tier, TierRequest
 from robin_scraping_api.tiers.redact import redact_proxy
 
@@ -33,6 +34,7 @@ def fetch_browser(
         "headless": tier != Tier.BROWSER_STEALTH_PROXY,
         "disable_resources": True,
         "timeout": int(request.timeout_seconds * 1000),
+        "capture_xhr": ".*",
     }
     if proxy_value:
         session_arguments["proxy"] = proxy_value
@@ -59,14 +61,39 @@ def fetch_browser(
                 secrets=[proxy_value] if proxy_value else None,
             ),
         ) from error
+    html: str = bytes(getattr(page, "body")).decode(
+        getattr(page, "encoding", None) or "utf-8", errors="replace"
+    )
     return FetchResult(
+        api_candidates=tuple(
+            find_api_candidates(captured=_captured_responses(page=page), html=html)
+        ),
         status=int(getattr(page, "status")),
         headers={str(key): str(value) for key, value in dict(getattr(page, "headers", {}) or {}).items()},
-        html=bytes(getattr(page, "body")).decode(getattr(page, "encoding", None) or "utf-8", errors="replace"),
+        html=html,
         final_url=str(getattr(page, "url", request.url)),
         tier=tier,
         elapsed_ms=int((clock() - started) * 1000),
     )
+
+
+def _captured_responses(*, page: object) -> list[CapturedResponse]:
+    """Convert the XHR and fetch responses the browser captured into plain records."""
+    captured: list[CapturedResponse] = []
+    for response in getattr(page, "captured_xhr", None) or []:
+        headers: dict[str, str] = {
+            str(key).lower(): str(value)
+            for key, value in dict(getattr(response, "headers", {}) or {}).items()
+        }
+        captured.append(
+            CapturedResponse(
+                url=str(getattr(response, "url", "")),
+                status=int(getattr(response, "status", 0)),
+                content_type=headers.get("content-type", ""),
+                body=bytes(getattr(response, "body", b"") or b"").decode("utf-8", errors="replace"),
+            )
+        )
+    return captured
 
 
 def _load(*, factory: SessionFactory, arguments: dict[str, object], request: TierRequest) -> object:

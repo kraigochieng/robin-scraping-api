@@ -17,6 +17,8 @@ class FakeSession:
     created: list[dict[str, object]] = []
     fetched: list[tuple[str, dict[str, object]]] = []
     failure: Exception | None = None
+    body: bytes = b"<html>hi</html>"
+    captured: list[object] = []
 
     def __init__(self, **kwargs: object) -> None:
         """Record the session arguments."""
@@ -34,7 +36,14 @@ class FakeSession:
         FakeSession.fetched.append((url, kwargs))
         if FakeSession.failure:
             raise FakeSession.failure
-        return SimpleNamespace(status=200, headers={"a": "b"}, body=b"<html>hi</html>", url=url, encoding="utf-8")
+        return SimpleNamespace(
+            status=200,
+            headers={"a": "b"},
+            body=FakeSession.body,
+            url=url,
+            encoding="utf-8",
+            captured_xhr=FakeSession.captured,
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +52,8 @@ def reset_fake() -> None:
     FakeSession.created = []
     FakeSession.fetched = []
     FakeSession.failure = None
+    FakeSession.body = b"<html>hi</html>"
+    FakeSession.captured = []
 
 
 def run(*, tier: Tier, request: TierRequest, locks: ProfileLockRegistry | None = None):
@@ -92,3 +103,15 @@ def test_browser_error_is_converted_and_redacted() -> None:
     with pytest.raises(TierFetchError) as caught:
         run(tier=Tier.BROWSER_STEALTH_PROXY, request=request)
     assert "pa55" not in caught.value.reason
+
+
+def test_xhr_capture_is_on_and_candidates_are_reported() -> None:
+    """The session captures XHR, and a matching JSON response becomes an API candidate."""
+    FakeSession.body = b'<html><head><meta property="og:title" content="The Harbour Reopens"></head><body></body></html>'
+    FakeSession.captured = [
+        SimpleNamespace(url="http://127.0.0.1/api/a", status=200, headers={"Content-Type": "application/json"}, body=b'{"t": "The Harbour Reopens"}'),
+        SimpleNamespace(url="http://127.0.0.1/api/b", status=200, headers={}, body=b'{"t": "other"}'),
+    ]
+    result = run(tier=Tier.BROWSER, request=TierRequest(url="http://127.0.0.1/x"))
+    assert FakeSession.created[0]["capture_xhr"] == ".*"
+    assert [(item.url, item.matched_on) for item in result.api_candidates] == [("http://127.0.0.1/api/a", ["og_title"])]
