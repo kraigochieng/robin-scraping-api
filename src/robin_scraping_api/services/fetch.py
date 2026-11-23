@@ -7,7 +7,9 @@ from scrapling.fetchers import StealthySession
 
 from robin_scraping_api.config import PROFILES_DIR
 from robin_scraping_api.logging_config import setup_logging
+from robin_scraping_api.profile_locks import profile_locks
 from robin_scraping_api.schemas import OutputFormat, ScrapeResponse
+from robin_scraping_api.settings import settings
 
 setup_logging()
 
@@ -53,6 +55,12 @@ def _render(root, fmt: OutputFormat) -> str:
     return root.get_text(separator="\n", strip=True)
 
 
+def _browse(*, url: str, session_kwargs: dict[str, object]):
+    """Open a stealth browser session and load the page. Has side effects (network, process)."""
+    with StealthySession(**session_kwargs) as browser:
+        return browser.fetch(url, network_idle=True)
+
+
 def fetch(
     url: str,
     profile_name: str | None = None,
@@ -82,8 +90,14 @@ def fetch(
     if user_data_dir:
         session_kwargs["user_data_dir"] = user_data_dir
 
-    with StealthySession(**session_kwargs) as browser:
-        page = browser.fetch(url, network_idle=True)
+    if profile_name:
+        with profile_locks.hold(
+            profile_name=profile_name,
+            timeout_seconds=settings.profile_lock_timeout_seconds,
+        ):
+            page = _browse(url=url, session_kwargs=session_kwargs)
+    else:
+        page = _browse(url=url, session_kwargs=session_kwargs)
 
     logger.info("Fetched url=%s status=%s", url, page.status)
 
